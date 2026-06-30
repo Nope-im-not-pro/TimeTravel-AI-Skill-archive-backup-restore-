@@ -1,0 +1,27 @@
+# Lokale Konfiguration mit maschinen-spezifischen Pfaden. Nie committen.
+.env
+
+# Lokale Test-Skripte, kein Repo-Artefakt.
+*.ps1
+*_test.sh
+
+# Screenshots, nicht ins Repo.
+*.png
+
+# Restore-Workflow-State liegt zentral (Default ~/.restore_backups),
+# ausserhalb des Repos. Legacy-Ordner .restore/ wird beim ersten Aufruf
+# migriert - zur Sicherheit weiter ignoriert.
+.restore/
+.restore_backups/
+
+# Ablage für alte/archivierte Dateien (lokal, nicht nach GitHub)
+z_*
+
+# Interne Doku nicht auf GitHub hochladen.
+# Bspw.: Umsetzungspläne, Konzepte, TODOs.
+# Nur zwingend öffentliche Markdown-Dateien sind ausgenommen.
+*.md
+!CHANGELOG.md
+!README.md
+!LICENSE.md
+!BLUEPRINT*.md
