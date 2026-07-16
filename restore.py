@@ -30,6 +30,7 @@ import json
 import shutil
 import zipfile
 import fnmatch
+import hashlib
 from datetime import datetime, timedelta
 
 # --- Konstanten -------------------------------------------------------------
@@ -239,7 +240,10 @@ def write_point(point_type, summary, files):
                 ap = to_abs(f["rel"])
                 if not os.path.isfile(ap):
                     fail("Datei nicht gefunden: " + f["rel"])
-                zf.write(ap, arcname=f["rel"])
+                with open(ap, "rb") as fh:
+                    data = fh.read()
+                zf.writestr(f["rel"], data)
+                f["hash"] = hashlib.sha256(data).hexdigest()
 
     manifest = {
         "id": pid, "type": point_type, "summary": summary,
@@ -415,6 +419,7 @@ def compute_auto_delta(idx):
         fail("Kein Punkt vorhanden - erst -1 Baseline erstellen.", EXIT_ERR)
     last_point = pts[-1]
     desired = replay_to(idx, last_point)
+    desired_hash = replay_hashes(idx, last_point)
     files = []
     for rel, source_pid in desired.items():
         if source_pid is None:
@@ -423,11 +428,17 @@ def compute_auto_delta(idx):
         if not os.path.isfile(ap):
             files.append({"rel": rel, "action": "deleted"})
             continue
-        old = read_from_point(idx, source_pid, rel)
-        with open(ap, "rb") as fh:
-            cur = fh.read()
-        if cur != old:
-            files.append({"rel": rel, "action": "modified"})
+        old_hash = desired_hash.get(rel)
+        if old_hash:
+            if _sha256_file(ap) != old_hash:
+                files.append({"rel": rel, "action": "modified"})
+        else:
+            # Legacy-Punkt ohne Hash -> Byte-Vergleich (Rueckwaertskompat)
+            old = read_from_point(idx, source_pid, rel)
+            with open(ap, "rb") as fh:
+                cur = fh.read()
+            if cur != old:
+                files.append({"rel": rel, "action": "modified"})
     for rel in walk_project():
         if rel not in desired or desired[rel] is None:
             files.append({"rel": rel, "action": "created"})
@@ -510,6 +521,30 @@ def replay_to(idx, target):
             else:
                 desired[f["rel"]] = p["id"]
     return desired
+
+
+def _sha256_file(ap):
+    h = hashlib.sha256()
+    with open(ap, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def replay_hashes(idx, target):
+    """Wie replay_to, liefert rel -> Hash des juengsten Quell-Punkts
+    (<= target). None bei geloescht oder fehlendem Hash (Legacy)."""
+    pts = sorted_points(idx)
+    hashes = {}
+    for p in pts:
+        if p["id"] > target["id"]:
+            break
+        for f in p["files"]:
+            if f["action"] == "deleted":
+                hashes[f["rel"]] = None
+            else:
+                hashes[f["rel"]] = f.get("hash")
+    return hashes
 
 
 def read_from_point(idx, pid, rel):

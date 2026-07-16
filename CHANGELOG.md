@@ -2,6 +2,31 @@
 
 Format: SemVer + ISO-Datum.
 
+## [1.4.1] - 2026-07-16
+
+### Geaendert
+- `compute_auto_delta`: Delta-Detektion per sha256-Hash statt Byte-Vergleich
+  aus dem Punkt-Zip. `write_point` schreibt je `modified`/`created`-Eintrag
+  ein `hash`-Feld (sha256-hex) in `files[]` von manifest.json und
+  index.json (additiv, kein version-Bump). Alt-Punkte ohne `hash` fallen
+  auf den bisherigen Byte-Vergleich zurueck (`read_from_point`), keine
+  Migration, kein Bruch bestehender index.json. `write_point` nutzt
+  `zf.writestr(data)` statt `zf.write(ap)`; Restore liest nur Bytes, kein
+  mtime-Restore -> kein Verhaltensbruch.
+
+### Hinzugefuegt
+- Helfer `_sha256_file(ap)` (chunked sha256 der Disk-Datei) und
+  `replay_hashes(idx, target)` (Replay `rel -> Hash` des juengsten
+  Quell-Punkts, `None` bei geloescht/Legacy).
+- `import hashlib` (stdlib).
+
+### Verifiziert
+- Baseline schreibt `hash` je Datei; Modify erfasst genau die geaenderte
+  Datei; Kein-Delta -> kein Punkt; Created/Deleted korrekt; Legacy ohne
+  `hash` -> Byte-Pfad identisch; `restore.py -3 -1` stellt Zustand korrekt
+  her (temp-Projekt, externer Backup-Root).
+- Master-Deploy `~/.claude/tools/restore.py` inhaltsgleich nachgezogen.
+
 ## [1.4.0] - 2026-06-26
 
 ### Hinzugefuegt
